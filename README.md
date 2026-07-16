@@ -165,7 +165,8 @@ Router(config)# ip route 0.0.0.0 0.0.0.0 200.100.10.2
 
 **Inter-VLAN Routing**
 
-![Pruebas de ping](images/ping-tests.png)
+![Ping entre VLANs](images/ping-intervlan.png)
+![Ping hacia el servidor](images/ping-servidor.png)
 
 - [x] Ping entre PCs de la misma VLAN → exitoso
 - [x] Ping entre PCs de VLANs distintas (ej: PC2-IT → PC1-ventas) → exitoso
