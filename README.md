@@ -1,12 +1,14 @@
-# Red LAN con VLANs, Inter-VLAN Routing y NAT
+# Red LAN con VLANs, Inter-VLAN Routing, NAT y ACLs
 
 ## 📌 Descripción
 
-Simulación de una red LAN empresarial en Cisco Packet Tracer, segmentada en 4 VLANs departamentales, con enrutamiento entre ellas (router-on-a-stick) y salida a "internet" mediante NAT overload (PAT). Proyecto basado en conocimientos de mi certificación Cisco (CCNA).
+Simulación de una red LAN empresarial en Cisco Packet Tracer, segmentada en 4 VLANs departamentales, con enrutamiento entre ellas (router-on-a-stick), salida a "internet" mediante NAT overload (PAT), y políticas de seguridad aplicadas con ACLs para restringir el acceso entre departamentos. Proyecto basado en conocimientos de mi certificación Cisco (CCNA), construido de forma incremental en dos fases.
 
 ## 🎯 Objetivo
 
-Simular la red interna de una empresa con 4 departamentos (Administración, Ventas, IT e Invitados), aislados lógicamente mediante VLANs pero con capacidad de comunicarse entre sí, y con salida controlada a internet a través de una única IP pública.
+Simular la red interna de una empresa con 4 departamentos (Administración, Ventas, IT e Invitados), aislados lógicamente mediante VLANs pero con capacidad de comunicarse entre sí, con salida controlada a internet a través de una única IP pública, y con políticas de seguridad que restrinjan el acceso de la red de Invitados hacia los departamentos internos.
+
+# 🌐 Fase 1: VLANs, Inter-VLAN Routing y NAT
 
 ## 🖧 Topología de red
 
@@ -180,8 +182,72 @@ Router(config)# ip route 0.0.0.0 0.0.0.0 200.100.10.2
 - [x] `show ip nat translations` → confirmado con traducciones reales desde **Ventas** (`192.168.20.10 → 200.100.10.1`) e **Invitados** (`192.168.99.10 → 200.100.10.1`)
 - [x] Ping desde cada VLAN hacia el servidor (`200.100.10.2`) → exitoso en las 4
 
+---
+
+# 🔒 Fase 2: Seguridad con ACLs
+
+Una vez validada la red base (VLANs + Routing + NAT), se agregó una segunda fase enfocada en seguridad, restringiendo el acceso de ciertos departamentos entre sí mediante Access Control Lists (ACLs).
+
+### Políticas de seguridad definidas
+
+| Origen | Destino | Política |
+|---|---|---|
+| Invitados (VLAN 99) | Administración, Ventas, IT | ❌ Bloqueado |
+| Invitados (VLAN 99) | Internet (Server0) | ✅ Permitido |
+| Administración / Ventas | Invitados (VLAN 99) | ❌ Bloqueado |
+| IT (VLAN 30) | Invitados (VLAN 99) | ✅ Permitido (rol de soporte técnico) |
+| Administración / Ventas / IT | Entre sí | ✅ Permitido |
+
+### Configuración
+
+Como el tráfico de IT e Invitados pasa por la misma interfaz física del router (`GigabitEthernet0/1`), ambas políticas se resolvieron aplicando dos ACLs extendidas sobre la subinterfaz `.99`.
+
+**1. ACL 100 — bloquea la salida de Invitados hacia las VLANs internas:**
+```
+Router(config)# access-list 100 deny ip 192.168.99.0 0.0.0.255 192.168.10.0 0.0.0.255
+Router(config)# access-list 100 deny ip 192.168.99.0 0.0.0.255 192.168.20.0 0.0.0.255
+Router(config)# access-list 100 deny ip 192.168.99.0 0.0.0.255 192.168.30.0 0.0.0.255
+Router(config)# access-list 100 permit ip any any
+```
+
+**2. ACL 101 — bloquea que Administración y Ventas entren a Invitados:**
+```
+Router(config)# access-list 101 deny ip 192.168.10.0 0.0.0.255 192.168.99.0 0.0.0.255
+Router(config)# access-list 101 deny ip 192.168.20.0 0.0.0.255 192.168.99.0 0.0.0.255
+Router(config)# access-list 101 permit ip any any
+```
+
+**3. Aplicación de ambas ACLs en la subinterfaz de Invitados:**
+```
+Router(config)# interface gigabitEthernet0/1.99
+Router(config-subif)# ip access-group 100 in
+Router(config-subif)# ip access-group 101 out
+```
+
+> **Nota:** en una ACL, las reglas se evalúan en orden de arriba hacia abajo, deteniéndose en la primera coincidencia. Por eso los `deny` siempre se colocan antes del `permit ip any any` — de lo contrario, el permit capturaría todo el tráfico y los `deny` nunca se aplicarían.
+
+### Pruebas de funcionamiento
+
+![Access-lists con matches](images/access-lists-matches.png)
+
+| Desde | Hacia | Resultado esperado | Resultado real |
+|---|---|---|---|
+| PC3 (Invitados) | PC0 (Admin) | ❌ Debe fallar | ❌ Falló |
+| PC3 (Invitados) | PC1 (Ventas) | ❌ Debe fallar | ❌ Falló |
+| PC3 (Invitados) | PC2 (IT) | ❌ Debe fallar | ❌ Falló |
+| PC3 (Invitados) | Servidor (200.100.10.2) | ✅ Debe funcionar | ✅ Funcionó |
+| PC0 (Admin) | PC3 (Invitados) | ❌ Debe fallar | ❌ Falló |
+| PC1 (Ventas) | PC3 (Invitados) | ❌ Debe fallar | ❌ Falló |
+| PC2 (IT) | PC3 (Invitados) | ✅ Debe funcionar | ✅ Funcionó |
+
+- [x] `show access-lists` → matches confirmados en las reglas `deny` de ambas ACLs, validando que cada bloqueo ocurrió por la regla correcta y no por otra causa
+- [x] Las 7 pruebas de ping coincidieron con el resultado esperado
+
+---
+
 ## 📚 Qué aprendí
 
+**Fase 1 (VLANs, Routing, NAT):**
 - Cómo segmentar una red físicamente unida en múltiples redes lógicas mediante VLANs
 - Diferencia entre puertos de acceso (access) y puertos troncales (trunk)
 - Cómo configurar subinterfaces para enrutar tráfico entre VLANs (router-on-a-stick)
@@ -191,9 +257,15 @@ Router(config)# ip route 0.0.0.0 0.0.0.0 200.100.10.2
 - Que un ping exitoso no siempre prueba que el NAT esté funcionando — hay que verificar la tabla de traducciones directamente
 - Que copiar configuración entre switches sin ajustar los valores (ej: número de VLAN) es un error común que vale la pena revisar siempre con `show vlan brief`
 
+**Fase 2 (ACLs):**
+- Cómo traducir una política de seguridad en lenguaje de negocio (ej: "Invitados no debe acceder a IT") a reglas concretas de ACL
+- Que el orden de las líneas dentro de una ACL determina el resultado, ya que el router se detiene en la primera coincidencia
+- Diferencia entre aplicar una ACL en dirección `in` y `out` sobre una interfaz, y cómo aprovechar eso para resolver varias políticas desde un mismo punto de la red
+- Que `show access-lists` con los contadores de "match(es)" es la forma correcta de comprobar que una regla específica fue la que causó el bloqueo o el permiso, no solo confiar en el resultado del ping
+
 ## 🔜 Siguiente paso
 
-El siguiente laboratorio de la serie será **ACLs entre VLANs**, para restringir el acceso de ciertos departamentos entre sí (por ejemplo, que Invitados no pueda llegar a los recursos de IT), reforzando el aspecto de seguridad de la red.
+El siguiente laboratorio de la serie será **enrutamiento dinámico con OSPF**, para que los routers aprendan rutas automáticamente entre sí en vez de configurarlas de forma manual, sentando las bases para escalar esta red a un escenario con múltiples routers.
 
 ## 📄 Licencia
 
