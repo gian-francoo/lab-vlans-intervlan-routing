@@ -30,6 +30,10 @@ Simular la red interna de una empresa con 4 departamentos (Administración, Vent
 | GigabitEthernet0/1 | Switch1 (trunk) | Subinterfaces .30 y .99 |
 | GigabitEthernet0/2 | Server0 | Salida a internet (NAT outside) |
 
+## 📥 Cómo probar este proyecto
+
+Descarga el archivo `.pkt` de este repositorio y ábrelo con [Cisco Packet Tracer](https://www.netacad.com/courses/packet-tracer) (gratis con cuenta de Cisco NetAcad) para explorar la configuración completa y probarla tú mismo.
+
 ## 🛠️ Tecnologías y herramientas
 
 - Cisco Packet Tracer
